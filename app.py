@@ -106,8 +106,8 @@ with tab2:
 # =========================
 with tab3:
     st.info("Recommended new tower locations will appear here.")
-    st.write("Population proxy + coverage gaps logic goes here.")
-[7:53 AM, 1/8/2026] Holex Properties: import os
+    st.write("Population proxy + coverage gaps logic goes here.") 
+import os
 import json
 import streamlit as st
 import folium
@@ -216,4 +216,5 @@ with tab2:
 # =========================
 with tab3:
     st.info("Recommended tower locations will appear here.")
+
 
