@@ -50,10 +50,10 @@ if missing:
 # LOAD GEOJSON FILES
 # =====================================================
 try:
-    with open("geo/gadm41_NGA_0.geojson", "r", encoding="utf-8") as f:
+    with open("gadm41_NGA_0.geojson", "r", encoding="utf-8") as f:
         nigeria_geo = json.load(f)
 
-    with open("geo/gadm41_NGA_1.geojson", "r", encoding="utf-8") as f:
+    with open("gadm41_NGA_1.geojson", "r", encoding="utf-8") as f:
         states_geo = json.load(f)
 except Exception as e:
     st.error(f"Error loading GeoJSON files: {e}")
@@ -309,4 +309,5 @@ with tab6:
             sites_df.to_csv(index=False),
             "recommended_sites.csv",
             "text/csv"
+
         )
