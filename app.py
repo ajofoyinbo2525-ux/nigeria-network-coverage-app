@@ -220,7 +220,6 @@ if st.session_state.analysis_done:
             if len(distances) == 0: continue
             if distances.min() > 8:
                 uncovered.append((glat, glon))
-                # RED = poor/no network
                 folium.Circle([glat, glon], radius=3000, color="red", fill=True, fill_opacity=0.4).add_to(gap_map)
 
     # Input location marker
@@ -249,7 +248,6 @@ if st.session_state.analysis_done:
         folium.GeoJson(nga, style_function=lambda x: {"fillOpacity": 0, "color": "black", "weight": 1}).add_to(m)
         folium.GeoJson(states, style_function=lambda x: {"fillOpacity": 0, "color": "gray", "weight": 0.5}).add_to(m)
 
-        # CircleMarkers + heatmap
         heat_data = []
         for _, r in nearby.iterrows():
             tech_color = TECH_COLORS.get(r["Network_Generation"], "#607D8B")
@@ -266,16 +264,12 @@ if st.session_state.analysis_done:
             ).add_to(m)
             heat_data.append([r["Latitude"], r["Longitude"]])
 
-        # Input location marker
         folium.Marker([lat, lon], popup="Your Location", icon=folium.Icon(color="blue")).add_to(m)
-
         folium.Circle([lat, lon], radius=radius_km*1000, color="blue").add_to(m)
 
-        # Add HeatMap Layer
         if heat_data:
             HeatMap(heat_data, radius=25, blur=15, max_zoom=10).add_to(m)
 
-        # Legend Box
         legend_html = """
          <div style="
              position: fixed;
@@ -304,17 +298,15 @@ if st.session_state.analysis_done:
         m.get_root().html.add_child(folium.Element(legend_html))
         st_folium(m, height=520, width=1100)
 
-        # Technology Summary Bar Chart
+        # Technology Summary
         st.header("📡 Technology Summary")
-        tech_summary = nearby["Network_Generation"].value_counts()
-        st.bar_chart(tech_summary)
+        st.bar_chart(nearby["Network_Generation"].value_counts())
 
-        # Operator Summary Bar Chart
+        # Operator Summary
         st.header("🏢 Operator Operational Summary")
-        op_summary = nearby["Network_Operator"].value_counts()
-        st.bar_chart(op_summary)
+        st.bar_chart(nearby["Network_Operator"].value_counts())
 
-        # Coverage Density
+        # Coverage Density by State
         st.header("🗺 Coverage Density by State")
         st.dataframe(
             nearby.groupby("State").size()
