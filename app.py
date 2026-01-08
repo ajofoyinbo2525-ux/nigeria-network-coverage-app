@@ -1,4 +1,4 @@
-import os
+[7:46 AM, 1/8/2026] Holex Properties: import os
 import json
 import streamlit as st
 import folium
@@ -107,3 +107,112 @@ with tab2:
 with tab3:
     st.info("Recommended new tower locations will appear here.")
     st.write("Population proxy + coverage gaps logic goes here.")
+[7:53 AM, 1/8/2026] Holex Properties: import os
+import json
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
+
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="Nigeria Mobile Network Coverage Planning System",
+    layout="wide"
+)
+
+st.title("Nigeria Mobile Network Coverage Planning System")
+st.caption("2G | 3G | 4G • Coverage • Gaps • Site Recommendation")
+
+# =========================
+# SAFE BASE DIRECTORY (STREAMLIT CLOUD FIX)
+# =========================
+BASE_DIR = os.getcwd()
+
+nga0_file = "gadm41_NGA_0.geojson"
+nga1_file = "gadm41_NGA_1.geojson"
+
+nga0_path = os.path.join(BASE_DIR, nga0_file)
+nga1_path = os.path.join(BASE_DIR, nga1_file)
+
+# =========================
+# DEBUG INFO (VERY IMPORTANT)
+# =========================
+st.write("📂 Working directory:", BASE_DIR)
+st.write("📄 Files in directory:", os.listdir(BASE_DIR))
+
+# =========================
+# FILE CHECK
+# =========================
+if not os.path.exists(nga0_path):
+    st.error("❌ gadm41_NGA_0.geojson not found in app directory")
+    st.stop()
+
+if not os.path.exists(nga1_path):
+    st.error("❌ gadm41_NGA_1.geojson not found in app directory")
+    st.stop()
+
+# =========================
+# LOAD GEOJSON FILES
+# =========================
+with open(nga0_path, "r", encoding="utf-8") as f:
+    nigeria_geo = json.load(f)
+
+with open(nga1_path, "r", encoding="utf-8") as f:
+    states_geo = json.load(f)
+
+st.success("✅ GeoJSON files loaded successfully")
+
+# =========================
+# TABS
+# =========================
+tab1, tab2, tab3 = st.tabs([
+    "🗺️ National Coverage Map",
+    "📊 Coverage Density",
+    "📍 Site Recommendation"
+])
+
+# =========================
+# TAB 1: MAP
+# =========================
+with tab1:
+    m = folium.Map(location=[9.08, 8.67], zoom_start=6)
+
+    folium.GeoJson(
+        nigeria_geo,
+        name="Nigeria Boundary",
+        style_function=lambda x: {
+            "fillColor": "#00000000",
+            "color": "black",
+            "weight": 2
+        }
+    ).add_to(m)
+
+    folium.GeoJson(
+        states_geo,
+        name="States",
+        style_function=lambda x: {
+            "fillColor": "#3388ff33",
+            "color": "blue",
+            "weight": 1
+        },
+        tooltip=folium.GeoJsonTooltip(
+            fields=["NAME_1"],
+            aliases=["State"]
+        )
+    ).add_to(m)
+
+    folium.LayerControl().add_to(m)
+    st_folium(m, width=1200, height=600)
+
+# =========================
+# TAB 2
+# =========================
+with tab2:
+    st.info("Coverage density per state will appear here.")
+
+# =========================
+# TAB 3
+# =========================
+with tab3:
+    st.info("Recommended tower locations will appear here.")
