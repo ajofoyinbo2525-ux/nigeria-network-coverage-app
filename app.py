@@ -17,6 +17,44 @@ st.set_page_config(
 
 st.title("📡 Nigeria Network Coverage & Planning App")
 
+# ================= USER GUIDE =================
+with st.expander("📖 User Guide / How to Use This App", expanded=False):
+    st.markdown("""
+    ## Overview
+    This app allows you to:
+    - Visualize 2G, 3G, 4G network coverage across Nigeria.
+    - Predict the best network operator at your location.
+    - Identify poor/no coverage areas and suggest new tower locations.
+    - Analyze coverage density per state.
+    - Export data and view operator & technology summaries.
+
+    ## Steps to Use
+    1. Enter your **Latitude** and **Longitude** in the sidebar.
+    2. Select the **Coverage Radius** (5–100 km).
+    3. Click **🔍 Analyze**.
+
+    ## Outputs
+    - **Coverage Map:** Shows sites with color coding (operator fill, tech border) + heatmap + input location.
+    - **Network Predictor:** Shows strongest network nearby or nearest site if no coverage.
+    - **No Coverage Map:** Red circles = poor/no network, blue = your location, suggested tower in red.
+    - **Statistics:** Metrics, bar charts, coverage density per state.
+    - **Export:** Download nearby site data as CSV.
+    - **Operational Summary:** Key insights and recommendations.
+
+    ## Example Coordinates
+    | Location | Latitude | Longitude | Radius | Expected Outcome |
+    |----------|----------|-----------|--------|-----------------|
+    | Lagos | 6.5244 | 3.3792 | 30 | Multiple sites, heatmap, predictor |
+    | Sparse area | 7.2000 | 5.0000 | 30 | Likely no coverage, suggested tower |
+    | Abuja | 9.0578 | 7.4951 | 40 | Best network prediction, coverage density |
+
+    ## Tips
+    - Ensure CSV and GeoJSON files are in the same folder as `app.py`.
+    - Use larger radius to see wider coverage, smaller for local analysis.
+    - Heatmap highlights dense network areas.
+    - Export CSV for GIS or reporting.
+    """)
+
 # ==================================================
 # DATA LOADING
 # ==================================================
