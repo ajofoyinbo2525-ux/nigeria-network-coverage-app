@@ -23,7 +23,7 @@ st.caption("2G | 3G | 4G • Coverage • Gaps • Site Recommendation")
 # ===============================
 # SAFE GEOJSON LOADER
 # ===============================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.getcwd()
 
 nga0_path = os.path.join(BASE_DIR, "gadm41_NGA_0.geojson")
 nga1_path = os.path.join(BASE_DIR, "gadm41_NGA_1.geojson")
@@ -218,6 +218,7 @@ with tab5:
         ).add_to(m5)
 
     st_folium(m5, height=600)
+
 
 
 
