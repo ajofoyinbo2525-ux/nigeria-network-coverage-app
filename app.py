@@ -1,276 +1,255 @@
+import os
+import json
 import streamlit as st
 import pandas as pd
 import folium
-import json
 from geopy.distance import geodesic
 from streamlit_folium import st_folium
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
-    page_title="Nigeria Network Coverage & Planning",
+    page_title="Nigeria Network Coverage Dashboard",
     layout="wide"
 )
 
 st.title("📡 Nigeria Network Coverage & Planning Dashboard")
-st.caption("All results remain visible until new coordinates are analyzed")
 
-# =========================================================
-# SESSION STATE
-# =========================================================
+# ---------------- CONSTANTS ----------------
+CSV_FILE = "Nigeria_2G_3G_4G_All_Operators_ArcGIS.csv"
+
+OPERATOR_COLORS = {
+    "MTN": "yellow",
+    "AIRTEL": "red",
+    "GLO": "green",
+    "9MOBILE": "blue"
+}
+
+TECH_ICONS = {
+    "2G": "signal",
+    "3G": "wifi",
+    "4G": "tower-broadcast"
+}
+
+# ---------------- SESSION STATE ----------------
 if "run" not in st.session_state:
     st.session_state.run = False
 
-# =========================================================
-# LOAD DATA
-# =========================================================
+# ---------------- FILE FINDER ----------------
+def find_file(filename):
+    for root, _, files in os.walk("."):
+        if filename in files:
+            return os.path.join(root, filename)
+    return None
+
+nga0_path = find_file("gadm41_NGA_0.geojson")
+nga1_path = find_file("gadm41_NGA_1.geojson")
+
+# ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_network_data():
-    return pd.read_csv("Nigeria_2G_3G_4G_All_Operators_ArcGIS.csv")
-
-@st.cache_data
-def load_geojson(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return pd.read_csv(CSV_FILE)
 
 try:
     df = load_network_data()
 except:
-    st.error("❌ Nigeria_2G_3G_4G_All_Operators_ArcGIS.csv not found")
+    st.error("❌ Network CSV not found. Ensure the file name is correct.")
     st.stop()
 
-try:
-    nigeria_geo = load_geojson("gadm41_NGA_0.geojson")
-    states_geo = load_geojson("gadm41_NGA_1.geojson")
-except:
-    st.error("❌ Nigeria GeoJSON files not found")
-    st.stop()
+# Validate columns
+required_cols = ["Latitude", "Longitude", "Network_Operator", "Network_Generation"]
+for col in required_cols:
+    if col not in df.columns:
+        st.error(f"❌ Missing required column: {col}")
+        st.stop()
 
-# =========================================================
-# COLUMN NAMES (EXACT)
-# =========================================================
-LAT = "Latitude"
-LON = "Longitude"
-OP = "Network_Operator"
-GEN = "Network_Generation"
-
-# =========================================================
-# COLOR CODING
-# =========================================================
-OP_COLORS = {
-    "MTN": "yellow",
-    "Airtel": "red",
-    "Glo": "green",
-    "9mobile": "darkgreen"
-}
-
-GEN_COLORS = {
-    "2G": "gray",
-    "3G": "orange",
-    "4G": "blue"
-}
-
-# =========================================================
-# CONFIDENCE LOGIC
-# =========================================================
-def confidence_level(d):
-    if d <= 5:
-        return "High"
-    elif d <= 15:
-        return "Medium"
-    else:
-        return "Low"
-
-# =========================================================
-# SIDEBAR INPUT
-# =========================================================
+# ---------------- SIDEBAR ----------------
 st.sidebar.header("📍 Location Input")
 
 lat = st.sidebar.number_input("Latitude", value=6.5244, format="%.6f")
 lon = st.sidebar.number_input("Longitude", value=3.3792, format="%.6f")
-radius = st.sidebar.slider("Analysis Radius (km)", 5, 300, 20)
+
+radius_km = st.sidebar.slider("Buffer Radius (km)", 1, 100, 20)
 no_limit = st.sidebar.checkbox("No distance limit")
 
-if st.sidebar.button("🔍 Analyze"):
+if st.sidebar.button("🔍 Analyze Location"):
     st.session_state.run = True
     st.session_state.lat = lat
     st.session_state.lon = lon
-    st.session_state.radius = radius
+    st.session_state.radius = radius_km
     st.session_state.no_limit = no_limit
 
-# =========================================================
-# MAIN ANALYSIS
-# =========================================================
-if st.session_state.run:
+# ---------------- TABS ----------------
+tabs = st.tabs([
+    "🗺 Coverage Map",
+    "⭕ Buffer View",
+    "🚫 No Coverage Map",
+    "📊 Network Results",
+    "🔮 Network Predictor",
+    "⚠ Coverage Gap Analyzer",
+    "🏗 New Tower Recommendation",
+    "🏙 Coverage Density (State)",
+    "📡 Operator Summary",
+    "📶 Technology Summary",
+    "📥 Export Results",
+    "📘 User Guide"
+])
 
+# ---------------- ANALYSIS ----------------
+if st.session_state.run:
     lat0 = st.session_state.lat
     lon0 = st.session_state.lon
+    radius_km = st.session_state.radius
+    no_limit = st.session_state.no_limit
 
     df["distance_km"] = df.apply(
-        lambda r: geodesic((lat0, lon0), (r[LAT], r[LON])).km,
+        lambda r: geodesic(
+            (lat0, lon0),
+            (r["Latitude"], r["Longitude"])
+        ).km,
         axis=1
     )
 
-    if st.session_state.no_limit:
+    if no_limit:
         nearby = df.copy()
     else:
-        nearby = df[df["distance_km"] <= st.session_state.radius].copy()
+        nearby = df[df["distance_km"] <= radius_km].copy()
 
-    nearby["Confidence"] = nearby["distance_km"].apply(confidence_level)
-
-    # =====================================================
-    st.header("🗺 Coverage Map")
-
-    m = folium.Map(
-        location=[lat0, lon0],
-        zoom_start=10,
-        tiles="cartodbpositron"
+    nearby["confidence"] = nearby["distance_km"].apply(
+        lambda d: "High" if d <= 5 else "Medium" if d <= 15 else "Low"
     )
 
-    folium.GeoJson(
-        nigeria_geo,
-        name="Nigeria Boundary",
-        style_function=lambda x: {"fillColor": "none", "color": "black", "weight": 2}
-    ).add_to(m)
+    # ---------------- TAB 1: COVERAGE MAP ----------------
+    with tabs[0]:
+        m = folium.Map([lat0, lon0], zoom_start=10)
 
-    folium.GeoJson(
-        states_geo,
-        name="State Boundaries",
-        style_function=lambda x: {"fillColor": "none", "color": "#666", "weight": 1}
-    ).add_to(m)
+        if nga0_path:
+            folium.GeoJson(nga0_path, name="Nigeria Boundary").add_to(m)
+        if nga1_path:
+            folium.GeoJson(nga1_path, name="State Boundary").add_to(m)
 
-    folium.Marker(
-        [lat0, lon0],
-        popup="Input Location",
-        icon=folium.Icon(color="red")
-    ).add_to(m)
-
-    folium.Circle(
-        [lat0, lon0],
-        radius=radius * 1000,
-        color="blue",
-        fill=True,
-        fill_opacity=0.1
-    ).add_to(m)
-
-    for _, r in nearby.iterrows():
-        color = OP_COLORS.get(r[OP], "blue")
-        folium.CircleMarker(
-            [r[LAT], r[LON]],
-            radius=4,
-            color=color,
-            fill=True,
-            popup=f"""
-            Operator: {r[OP]}<br>
-            Generation: {r[GEN]}<br>
-            Distance: {r['distance_km']:.2f} km<br>
-            Confidence: {r['Confidence']}
-            """
+        folium.Marker(
+            [lat0, lon0],
+            icon=folium.Icon(color="black"),
+            popup="Input Location"
         ).add_to(m)
 
-    folium.LayerControl().add_to(m)
-    st_folium(m, height=650, use_container_width=True)
+        for _, r in nearby.iterrows():
+            op = str(r["Network_Operator"]).upper()
+            tech = str(r["Network_Generation"]).upper()
 
-    # =====================================================
-    st.header("📡 Network Predictor")
+            folium.Marker(
+                [r["Latitude"], r["Longitude"]],
+                icon=folium.Icon(
+                    color=OPERATOR_COLORS.get(op, "gray"),
+                    icon=TECH_ICONS.get(tech, "signal"),
+                    prefix="fa"
+                ),
+                popup=f"""
+                <b>Operator:</b> {op}<br>
+                <b>Technology:</b> {tech}<br>
+                <b>Distance:</b> {r['distance_km']:.2f} km<br>
+                <b>Confidence:</b> {r['confidence']}
+                """
+            ).add_to(m)
 
-    if nearby.empty:
-        st.error("❌ No network detected at this location")
-    else:
-        predictor = nearby[[OP, GEN, "distance_km", "Confidence"]].sort_values("distance_km")
-        st.dataframe(predictor, use_container_width=True)
+        st_folium(m, height=600, use_container_width=True)
 
-        best = predictor.iloc[0]
-        st.success(
-            f"Best Network: {best[OP]} ({best[GEN]}) – {best['Confidence']} confidence"
+    # ---------------- TAB 2: BUFFER VIEW ----------------
+    with tabs[1]:
+        m = folium.Map([lat0, lon0], zoom_start=11)
+
+        folium.Circle(
+            [lat0, lon0],
+            radius=radius_km * 1000,
+            color="blue",
+            fill=True,
+            fill_opacity=0.15
+        ).add_to(m)
+
+        for _, r in nearby.iterrows():
+            folium.CircleMarker(
+                [r["Latitude"], r["Longitude"]],
+                radius=4,
+                color=OPERATOR_COLORS.get(str(r["Network_Operator"]).upper(), "gray"),
+                fill=True
+            ).add_to(m)
+
+        st_folium(m, height=600, use_container_width=True)
+
+    # ---------------- TAB 3: NO COVERAGE MAP ----------------
+    with tabs[2]:
+        if nearby.empty:
+            st.success("✅ No network coverage detected here.")
+        else:
+            st.warning("⚠ Coverage exists in this area.")
+
+    # ---------------- TAB 4: RESULTS TABLE ----------------
+    with tabs[3]:
+        st.dataframe(
+            nearby[[
+                "Network_Operator",
+                "Network_Generation",
+                "distance_km",
+                "confidence"
+            ]].sort_values("distance_km")
         )
 
-    # =====================================================
-    st.header("⚠ Coverage Gap Analyzer")
-
-    nearest_dist = df["distance_km"].min()
-    gap_status = "No Coverage" if nearby.empty else "Partial Coverage"
-
-    gap_df = pd.DataFrame([{
-        "Latitude": lat0,
-        "Longitude": lon0,
-        "Coverage_Status": gap_status,
-        "Nearest_Network_Distance_km": nearest_dist,
-        "Detected_Sites": len(nearby)
-    }])
-
-    st.dataframe(gap_df, use_container_width=True)
-
-    # =====================================================
-    st.header("🏗 New Tower Recommendation")
-
-    st.markdown(f"""
-    *Recommended Latitude:* {lat0}  
-    *Recommended Longitude:* {lon0}  
-    *Reason:* { "No existing coverage" if nearby.empty else "Coverage improvement needed" }
-    """)
-
-    rec_df = pd.DataFrame([{
-        "Recommended_Latitude": lat0,
-        "Recommended_Longitude": lon0,
-        "Reason": "No Coverage" if nearby.empty else "Weak Coverage"
-    }])
-
-    # =====================================================
-    st.header("📊 Coverage Density per State")
-
-    if "State" in df.columns:
-        density = (
-            df.groupby("State")
-            .size()
-            .reset_index(name="Network_Sites")
-            .sort_values("Network_Sites", ascending=False)
+    # ---------------- TAB 5: NETWORK PREDICTOR ----------------
+    with tabs[4]:
+        st.metric("Detected Networks", len(nearby))
+        st.dataframe(
+            nearby[[
+                "Network_Operator",
+                "Network_Generation",
+                "distance_km",
+                "confidence"
+            ]]
         )
-        st.dataframe(density, use_container_width=True)
-        st.bar_chart(density.set_index("State"))
-    else:
-        st.info("State column not available in CSV")
 
-    # =====================================================
-    st.header("🏢 Operator Summary")
-    st.bar_chart(df[OP].value_counts())
+    # ---------------- TAB 6: COVERAGE GAP ANALYZER ----------------
+    with tabs[5]:
+        status = "No Coverage" if nearby.empty else "Partial Coverage"
+        st.write("Coverage Status:", status)
 
-    # =====================================================
-    st.header("📶 Technology Summary")
-    st.bar_chart(df[GEN].value_counts())
+    # ---------------- TAB 7: NEW TOWER RECOMMENDATION ----------------
+    with tabs[6]:
+        if nearby.empty:
+            st.success("📍 Recommend building a new tower at input location.")
+        else:
+            st.info("📶 Improve existing coverage.")
 
-    # =====================================================
-    st.header("📤 Export Results")
+    # ---------------- TAB 8: COVERAGE DENSITY ----------------
+    with tabs[7]:
+        if "State" in df.columns:
+            density = df.groupby("State").size().sort_values(ascending=False)
+            st.bar_chart(density)
 
-    st.download_button(
-        "⬇ Download Network Results",
-        nearby.to_csv(index=False),
-        "network_results.csv"
-    )
+    # ---------------- TAB 9: OPERATOR SUMMARY ----------------
+    with tabs[8]:
+        st.bar_chart(df["Network_Operator"].value_counts())
 
-    st.download_button(
-        "⬇ Download Coverage Gap",
-        gap_df.to_csv(index=False),
-        "coverage_gap.csv"
-    )
+    # ---------------- TAB 10: TECHNOLOGY SUMMARY ----------------
+    with tabs[9]:
+        st.bar_chart(df["Network_Generation"].value_counts())
 
-    st.download_button(
-        "⬇ Download Recommended Tower",
-        rec_df.to_csv(index=False),
-        "recommended_tower.csv"
-    )
+    # ---------------- TAB 11: EXPORT ----------------
+    with tabs[10]:
+        st.download_button(
+            "⬇ Export Network Results",
+            nearby.to_csv(index=False),
+            "network_results.csv",
+            "text/csv"
+        )
 
-    # =====================================================
-    st.header("📖 User Guide")
-    st.markdown("""
-    *Steps*
-    1. Enter Latitude & Longitude
-    2. Choose radius or No distance limit
-    3. Click Analyze
-    4. Scroll to view all results
-    5. Export any result as CSV
-    """)
+    # ---------------- TAB 12: USER GUIDE ----------------
+    with tabs[11]:
+        st.markdown("""
+        *How to use this app*
+        1. Enter coordinates
+        2. Choose buffer or no limit
+        3. Click Analyze
+        4. View all tabs
+        """)
 
 else:
-    st.info("👈 Enter coordinates and click Analyze")
+    st.info("👈 Enter coordinates and click *Analyze Location*")
